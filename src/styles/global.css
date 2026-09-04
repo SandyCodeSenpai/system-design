@@ -461,6 +461,10 @@
   }
   .prose td:first-child { color: #fff; }
 
+  /* Long-form pages: text keeps a reading measure, figures and code take the
+     whole column. */
+  .prose-doc > :not(.diagram):not(pre):not(.table-wrap) { max-width: 72ch; }
+
   /* --- callout ---------------------------------------------------------- */
   .callout {
     display: grid;

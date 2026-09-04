@@ -193,12 +193,6 @@ const codeThemeKeys = CODE_THEMES.map((t) => t.key);
             host.className = 'diagram-svg';
             host.innerHTML = svg;
             bindFunctions?.(host);
-            // Mermaid caps the SVG at its natural width. Below that, keep it
-            // readable and let the figure scroll rather than shrinking the text.
-            const el = host.querySelector('svg');
-            const natural = parseFloat(el?.style.maxWidth ?? '');
-            const floor = Math.max(640, host.clientWidth * 1.5);
-            if (el && natural) el.style.minWidth = `${Math.min(natural, floor)}px`;
 
             const details = document.createElement('details');
             details.className = 'diagram-source';
@@ -210,6 +204,15 @@ const codeThemeKeys = CODE_THEMES.map((t) => t.key);
 
             pre.replaceWith(host);
             figure.append(details);
+
+            // Mermaid caps the SVG at its natural width and lets it shrink to
+            // fit. Below 1.5x the figure width, keep the text readable and let
+            // the figure scroll instead. Measured after attach, so clientWidth
+            // is real.
+            const el = host.querySelector('svg');
+            const natural = parseFloat(el?.style.maxWidth ?? '');
+            const floor = Math.max(640, host.clientWidth * 1.5);
+            if (el && natural) el.style.minWidth = `${Math.min(natural, floor)}px`;
           } catch (err) {
             const box = document.createElement('p');
             box.className = 'diagram-error';
