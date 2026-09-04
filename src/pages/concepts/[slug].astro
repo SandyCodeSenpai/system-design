@@ -1,0 +1,111 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import DifficultyBadge from '../../components/DifficultyBadge.astro';
+import ExternalIcon from '../../components/ExternalIcon.astro';
+import { href, githubBlobUrl } from '../../lib/site.ts';
+import { allConcepts, allDesigns, usedIn, type Concept } from '../../lib/data.ts';
+
+export async function getStaticPaths() {
+  const concepts = await allConcepts();
+  return concepts.map((concept, i) => ({
+    params: { slug: concept.id },
+    props: { concept, prev: concepts[i - 1] ?? null, next: concepts[i + 1] ?? null },
+  }));
+}
+
+interface Props {
+  concept: Concept;
+  prev: Concept | null;
+  next: Concept | null;
+}
+
+const { concept, prev, next } = Astro.props;
+const { data } = concept;
+const { Content } = await render(concept);
+const designs = usedIn(await allDesigns()).get(concept.id) ?? [];
+const sourceHref = concept.filePath ? githubBlobUrl(concept.filePath) : undefined;
+---
+
+<Base title={data.title} description={data.summary}>
+  <div class="shell pt-6 pb-stack">
+    <nav class="meta flex flex-wrap items-center gap-1.5" aria-label="Breadcrumb">
+      <a class="transition-colors hover:text-fg" href={href('/concepts/')}>Concepts</a>
+      <span class="text-fg-faint" aria-hidden="true">/</span>
+      <span class="text-fg-muted">{data.title}</span>
+    </nav>
+
+    <div class="mx-auto mt-6 max-w-[var(--container-prose)] lg:mx-0 lg:max-w-none lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-14">
+      <div class="min-w-0">
+        <header>
+          <p class="eyebrow">Concept</p>
+          <h1 class="mt-3 text-4xl">{data.title}</h1>
+          <p class="prose mt-4 max-w-[62ch]">{data.summary}</p>
+        </header>
+
+        <article class="prose mt-stack max-w-[72ch]">
+          <Content />
+        </article>
+
+        <nav class="mt-14 grid gap-3 border-t border-line pt-6 sm:grid-cols-2" aria-label="Adjacent concepts">
+          {
+            prev ? (
+              <a class="glass group p-4 transition-colors hover:bg-surface-2" href={href(`/concepts/${prev.id}/`)}>
+                <span class="eyebrow">Previous</span>
+                <span class="mt-1.5 block text-sm text-fg-muted transition-colors group-hover:text-fg">
+                  {prev.data.title}
+                </span>
+              </a>
+            ) : (
+              <span />
+            )
+          }
+          {
+            next && (
+              <a
+                class="glass group p-4 text-right transition-colors hover:bg-surface-2 sm:col-start-2"
+                href={href(`/concepts/${next.id}/`)}
+              >
+                <span class="eyebrow">Next</span>
+                <span class="mt-1.5 block text-sm text-fg-muted transition-colors group-hover:text-fg">
+                  {next.data.title}
+                </span>
+              </a>
+            )
+          }
+        </nav>
+      </div>
+
+      <aside class="mt-10 min-w-0 lg:mt-0 lg:sticky lg:top-20 lg:self-start">
+        <p class="eyebrow">Used in</p>
+        {
+          designs.length === 0 ? (
+            <p class="mt-3 text-sm text-fg-subtle">No design references this yet.</p>
+          ) : (
+            <ul class="mt-3 flex flex-col gap-1 border-l border-line">
+              {designs.map((d) => (
+                <li>
+                  <a
+                    class="-ml-px flex items-start justify-between gap-2 border-l border-transparent py-1 pl-3 text-sm text-fg-subtle transition-colors hover:border-line-strong hover:text-fg"
+                    href={href(`/designs/${d.id}/`)}
+                  >
+                    <span class="min-w-0">{d.data.title}</span>
+                    <DifficultyBadge difficulty={d.data.difficulty} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+        {
+          sourceHref && (
+            <a class="btn btn-block btn-quiet mt-6" href={sourceHref} target="_blank" rel="noopener noreferrer">
+              <span>View source on GitHub</span>
+              <ExternalIcon />
+            </a>
+          )
+        }
+      </aside>
+    </div>
+  </div>
+</Base>

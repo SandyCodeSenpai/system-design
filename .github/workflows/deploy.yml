@@ -1,0 +1,63 @@
+name: Deploy site
+
+# The site is generated from the markdown under content/. Pushes to main build
+# and deploy; pull requests build only, so a design that fails the schema is
+# caught before it reaches main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Check and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+      - run: npm run build
+      # A loader pointed at the wrong directory builds an empty site and exits 0.
+      - name: Guard against silent route loss
+        run: |
+          pages=$(find dist -name '*.html' | wc -l | tr -d ' ')
+          echo "built $pages pages"
+          if [ "$pages" -lt 8 ]; then
+            echo "::error::only $pages pages built - content routes were dropped"
+            exit 1
+          fi
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

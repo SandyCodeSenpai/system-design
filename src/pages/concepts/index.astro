@@ -1,0 +1,51 @@
+---
+import Base from '../../layouts/Base.astro';
+import { href, diagramCount } from '../../lib/site.ts';
+import { allConcepts, allDesigns, usedIn } from '../../lib/data.ts';
+
+const concepts = await allConcepts();
+const designs = await allDesigns();
+const uses = usedIn(designs);
+---
+
+<Base
+  title="Concepts"
+  description="The building blocks every design is assembled from: caching, sharding, consistent hashing, queues, load balancing, and the trade-offs between them."
+>
+  <div class="shell pt-stack pb-stack">
+    <header class="max-w-[52ch]">
+      <p class="eyebrow">Concepts</p>
+      <h1 class="mt-3 text-4xl">The building blocks.</h1>
+      <p class="prose mt-5">
+        Each design is assembled from the same handful of ideas. They are written up once here, with
+        their own diagrams, and every design links back to the ones it leans on. {concepts.length} so
+        far.
+      </p>
+    </header>
+
+    {
+      concepts.length === 0 ? (
+        <p class="mt-10 text-sm text-fg-subtle">No concepts yet.</p>
+      ) : (
+        <ul class="mt-stack grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {concepts.map((c) => {
+            const count = uses.get(c.id)?.length ?? 0;
+            const diagrams = diagramCount(c.body);
+            return (
+              <li>
+                <a class="glass group flex h-full flex-col p-5 transition-colors hover:bg-surface-2" href={href(`/concepts/${c.id}/`)}>
+                  <h2 class="text-lg text-fg transition-colors group-hover:text-fg">{c.data.title}</h2>
+                  <p class="prose mt-2 flex-1 text-sm">{c.data.summary}</p>
+                  <p class="meta mt-4 flex flex-wrap gap-x-3 tnum">
+                    <span>{count === 1 ? 'used in 1 design' : `used in ${count} designs`}</span>
+                    {diagrams > 0 && <span>{diagrams === 1 ? '1 diagram' : `${diagrams} diagrams`}</span>}
+                  </p>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )
+    }
+  </div>
+</Base>

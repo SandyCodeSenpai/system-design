@@ -1,0 +1,83 @@
+---
+import { Code } from 'astro:components';
+import Base from '../layouts/Base.astro';
+import { href, githubDevUrl, REPO_URL } from '../lib/site.ts';
+import { CODE_THEMES } from '../lib/codeThemes.ts';
+import ExternalIcon from '../components/ExternalIcon.astro';
+import template from '../../content/designs/_template.md?raw';
+import conceptTemplate from '../../content/concepts/_template.md?raw';
+
+const themes = Object.fromEntries(CODE_THEMES.map((t) => [t.key, t.id]));
+---
+
+<Base title="Add a design" description="How a design gets onto this site: one markdown file, a schema, and a build.">
+  <div class="shell pt-stack pb-stack">
+    <header class="max-w-[52ch]">
+      <p class="eyebrow">Add</p>
+      <h1 class="mt-3 text-4xl">One markdown file per design.</h1>
+      <p class="prose mt-5">
+        The files under <code>content/</code> are the site. Nothing else is edited by hand. Copy the
+        template, fill in the front matter, write the design, push. The build validates the front
+        matter and fails loudly rather than dropping a design silently.
+      </p>
+    </header>
+
+    <div class="mt-stack grid gap-10 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-14">
+      <div class="prose min-w-0 max-w-[72ch]">
+        <h2>1. Copy the template</h2>
+        <p>
+          The file name becomes the URL. <code>content/designs/url-shortener.md</code> is served at
+          <code>/designs/url-shortener/</code>. Files starting with <code>_</code> are ignored.
+        </p>
+        <Code code="cp content/designs/_template.md content/designs/my-design.md" lang="bash" themes={themes} defaultColor={false} />
+
+        <h2>2. Fill in the front matter</h2>
+        <p>
+          Every field is checked against the schema in <code>src/content.config.ts</code>. In
+          particular, <code>concepts</code> must name files that exist under
+          <code>content/concepts/</code>, so a dangling link cannot ship.
+        </p>
+        <Code code={template} lang="markdown" themes={themes} defaultColor={false} />
+
+        <h2>3. Diagrams</h2>
+        <p>
+          Any <code>```mermaid</code> fence renders as a diagram, and the reader can open its source
+          under the figure. Flowcharts, sequence diagrams, ER diagrams and state diagrams all work.
+          Quote labels that contain punctuation: <code>A["Cache (Redis)"]</code>.
+        </p>
+
+        <h2>4. Concepts</h2>
+        <p>
+          A concept is a building block shared by several designs. Same idea, smaller front matter.
+        </p>
+        <Code code={conceptTemplate} lang="markdown" themes={themes} defaultColor={false} />
+
+        <h2>5. Check and push</h2>
+        <Code code={`npm run check   # schema, types\nnpm run dev     # preview at http://localhost:4321${href('/')}`} lang="bash" themes={themes} defaultColor={false} />
+        <p>
+          A push to <code>main</code> builds and deploys. A pull request builds only, so a broken
+          design is caught before it lands.
+        </p>
+      </div>
+
+      <aside class="flex flex-col gap-2 lg:sticky lg:top-20 lg:self-start">
+        <a class="btn btn-block" href={githubDevUrl('content/designs')} target="_blank" rel="noopener noreferrer">
+          <span>Open in github.dev</span>
+          <ExternalIcon />
+        </a>
+        <a class="btn btn-block btn-quiet" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+          <span>Repository</span>
+          <ExternalIcon />
+        </a>
+        <a class="btn btn-block btn-quiet" href={href('/concepts/')}>
+          <span>Existing concepts</span>
+        </a>
+      </aside>
+    </div>
+  </div>
+</Base>
+
+<style is:global>
+  /* The <Code> component emits the same markup as markdown fences. */
+  .prose pre.astro-code { margin-block: 0.75em 1.5em; }
+</style>

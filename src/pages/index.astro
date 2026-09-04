@@ -1,0 +1,280 @@
+---
+import Base from '../layouts/Base.astro';
+import DifficultyBadge from '../components/DifficultyBadge.astro';
+import ExternalIcon from '../components/ExternalIcon.astro';
+import { href, REPO_URL, OWNER, ref, diagramCount } from '../lib/site.ts';
+import { allDesigns, allConcepts, isoDate } from '../lib/data.ts';
+import { DIFFICULTIES } from '../content.config.ts';
+
+const designs = await allDesigns();
+const concepts = await allConcepts();
+const conceptTitle = new Map(concepts.map((c) => [c.id, c.data.title]));
+
+// Categories in the order they first appear, so the filter reads like the list.
+const categories: string[] = [];
+for (const d of designs) if (!categories.includes(d.data.category)) categories.push(d.data.category);
+
+const usedConcepts = concepts.filter((c) => designs.some((d) => d.data.concepts.some((x) => x.id === c.id)));
+
+// Search index shipped inline. s = lowercase haystack, d = difficulty,
+// c = category, k = concept ids, a = ISO date for the "Recent" sort.
+const index = designs.map((d) => ({
+  s: [d.data.title, d.data.category, d.data.difficulty, d.data.summary, ...d.data.askedAt, ...d.data.concepts.map((c) => conceptTitle.get(c.id) ?? c.id)]
+    .join(' ')
+    .toLowerCase(),
+  d: d.data.difficulty,
+  c: d.data.category,
+  k: d.data.concepts.map((c) => c.id),
+  a: isoDate(d.data.date),
+}));
+const indexJson = JSON.stringify(index).replace(/</g, '\\u003c');
+
+const byDifficulty = (level: string) => designs.filter((d) => d.data.difficulty === level).length;
+const diagrams = designs.reduce((n, d) => n + diagramCount(d.body), 0);
+
+const cells = [
+  { label: 'Designs', value: designs.length, tone: '' },
+  { label: 'Concepts', value: concepts.length, tone: '' },
+  { label: 'Diagrams', value: diagrams, tone: '' },
+  { label: 'Easy', value: byDifficulty('Easy'), tone: 'text-easy' },
+  { label: 'Medium', value: byDifficulty('Medium'), tone: 'text-medium' },
+  { label: 'Hard', value: byDifficulty('Hard'), tone: 'text-hard' },
+];
+---
+
+<Base
+  title="Designs"
+  description={`${designs.length} system design questions worked end to end by ${OWNER}, with requirements, estimates, diagrams and trade-offs.`}
+>
+  <section class="shell pt-stack pb-stack">
+    <p class="eyebrow">{OWNER}</p>
+    <h1 class="mt-3 max-w-[20ch] text-4xl">Designs, trade-offs, and the diagrams I revise from.</h1>
+    <p class="prose mt-5 max-w-[62ch]">
+      Every system design question I have worked through, rendered straight from the markdown in the
+      repo at build time. Each one goes requirements, estimates, high-level design, deep dives, then the
+      trade-offs I would defend in the room. The diagrams are Mermaid, so they cannot rot next to the
+      prose.
+    </p>
+    <div class="mt-6 flex flex-wrap items-center gap-2">
+      <a class="btn" href={href('/concepts/')}>Building blocks</a>
+      <a class="btn btn-quiet" href={REPO_URL} target="_blank" rel="noopener noreferrer">
+        Repository <ExternalIcon />
+      </a>
+    </div>
+  </section>
+
+  <section class="shell" aria-label="Totals">
+    <dl class="stat-grid">
+      {
+        cells.map((cell) => (
+          <div class="stat">
+            <dd class:list={['stat-num', cell.tone]}>{cell.value}</dd>
+            <dt class="stat-label">{cell.label}</dt>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+
+  <section class="shell pt-stack" id="browser" aria-labelledby="all-designs">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <h2 id="all-designs" class="text-xl">All designs</h2>
+      <p class="meta tnum" id="f-count" aria-live="polite">{designs.length} designs</p>
+    </div>
+
+    <!-- Hidden until the script unhides it: with JS off every row is already visible. -->
+    <div id="filters" hidden class="mt-4 flex flex-wrap items-center gap-2">
+      <label class="sr-only" for="f-q">Search designs</label>
+      <input
+        class="field min-w-0 flex-1 basis-56"
+        id="f-q"
+        type="search"
+        placeholder="Search by title, category, concept…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+
+      <div class="seg" role="group" aria-label="Filter by difficulty">
+        <button type="button" data-diff="" aria-pressed="true">All</button>
+        {
+          DIFFICULTIES.map((d) => (
+            <button type="button" data-diff={d} data-difficulty={d} aria-pressed="false">
+              {d}
+            </button>
+          ))
+        }
+      </div>
+
+      <label class="sr-only" for="f-cat">Filter by category</label>
+      <select class="field" id="f-cat">
+        <option value="">All categories</option>
+        {categories.map((c) => <option value={c}>{c}</option>)}
+      </select>
+
+      <label class="sr-only" for="f-concept">Filter by concept</label>
+      <select class="field" id="f-concept">
+        <option value="">All concepts</option>
+        {usedConcepts.map((c) => <option value={c.id}>{c.data.title}</option>)}
+      </select>
+
+      <div class="seg" role="group" aria-label="Sort order">
+        <button type="button" data-sort="" aria-pressed="true">Default</button>
+        <button type="button" data-sort="recent" aria-pressed="false">Recent</button>
+      </div>
+
+      <button type="button" class="btn btn-quiet" id="f-clear" hidden>Clear</button>
+    </div>
+
+    <div class="mt-5">
+      <div class="plist-head" aria-hidden="true">
+        <span>#</span><span>Design</span><span>Category</span><span>Concepts</span>
+        <span class="justify-self-end">Level</span>
+      </div>
+
+      <ul class="plist mt-1" id="plist">
+        {
+          designs.map((d, i) => (
+            <li data-row>
+              <a class="prow" href={href(`/designs/${d.id}/`)}>
+                <span class="prow-num">{ref(i)}</span>
+                <span class="prow-title">{d.data.title}</span>
+                <span class="prow-meta">
+                  <span class="prow-cat" title={d.data.category}>
+                    {d.data.category}
+                  </span>
+                  <span class="prow-tags">
+                    {d.data.concepts.map((c) => (
+                      <span class="chip">{conceptTitle.get(c.id) ?? c.id}</span>
+                    ))}
+                  </span>
+                </span>
+                <DifficultyBadge difficulty={d.data.difficulty} class="prow-diff" />
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+
+      <p id="f-empty" hidden class="py-14 text-center text-sm text-fg-subtle">No designs match those filters.</p>
+    </div>
+  </section>
+
+  <script type="application/json" id="design-index" set:html={indexJson} is:inline />
+
+  <script is:inline>
+    (function () {
+      var root = document.getElementById('browser');
+      var blob = document.getElementById('design-index');
+      var bar = document.getElementById('filters');
+      if (!root || !blob || !bar) return;
+
+      var data;
+      try {
+        data = JSON.parse(blob.textContent || '[]');
+      } catch (e) {
+        return;
+      }
+
+      var rows = root.querySelectorAll('[data-row]');
+      if (rows.length !== data.length) return;
+
+      var q = document.getElementById('f-q');
+      var cat = document.getElementById('f-cat');
+      var concept = document.getElementById('f-concept');
+      var clear = document.getElementById('f-clear');
+      var count = document.getElementById('f-count');
+      var empty = document.getElementById('f-empty');
+      var list = document.getElementById('plist');
+      var segs = bar.querySelectorAll('[data-diff]');
+      var sorts = bar.querySelectorAll('[data-sort]');
+      var difficulty = '';
+      var recent = false;
+
+      bar.hidden = false;
+
+      // Moves the existing <li>s rather than re-rendering, so rows[i] <-> data[i]
+      // stays intact for the filter.
+      function resort() {
+        var seq = [];
+        for (var i = 0; i < data.length; i++) seq.push(i);
+        if (recent) {
+          seq.sort(function (i, j) {
+            if (data[i].a === data[j].a) return i - j;
+            return data[i].a < data[j].a ? 1 : -1;
+          });
+        }
+        for (var k = 0; k < seq.length; k++) list.appendChild(rows[seq[k]]);
+      }
+
+      function apply() {
+        var term = q.value.trim().toLowerCase();
+        var c = cat.value;
+        var k = concept.value;
+        var shown = 0;
+        for (var i = 0; i < data.length; i++) {
+          var d = data[i];
+          var ok =
+            (term === '' || d.s.indexOf(term) !== -1) &&
+            (difficulty === '' || d.d === difficulty) &&
+            (c === '' || d.c === c) &&
+            (k === '' || d.k.indexOf(k) !== -1);
+          if (rows[i].hidden === ok) rows[i].hidden = !ok;
+          if (ok) shown++;
+        }
+        var active = term !== '' || c !== '' || k !== '' || difficulty !== '';
+        clear.hidden = !active;
+        empty.hidden = shown !== 0;
+        count.textContent = active ? shown + ' of ' + data.length + ' designs' : data.length + ' designs';
+      }
+
+      function press(group, chosen) {
+        Array.prototype.forEach.call(group, function (b) {
+          b.setAttribute('aria-pressed', String(b === chosen));
+        });
+      }
+
+      Array.prototype.forEach.call(sorts, function (btn) {
+        btn.addEventListener('click', function () {
+          recent = btn.getAttribute('data-sort') === 'recent';
+          press(sorts, btn);
+          resort();
+        });
+      });
+      Array.prototype.forEach.call(segs, function (btn) {
+        btn.addEventListener('click', function () {
+          difficulty = btn.getAttribute('data-diff');
+          press(segs, btn);
+          apply();
+        });
+      });
+
+      q.addEventListener('input', apply);
+      cat.addEventListener('change', apply);
+      concept.addEventListener('change', apply);
+
+      clear.addEventListener('click', function () {
+        q.value = '';
+        cat.value = '';
+        concept.value = '';
+        difficulty = '';
+        press(segs, segs[0]);
+        apply();
+        q.focus();
+      });
+
+      // "/" jumps to search, Escape clears it.
+      document.addEventListener('keydown', function (event) {
+        var tag = (event.target && event.target.tagName) || '';
+        var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+        if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
+          event.preventDefault();
+          q.focus();
+          q.select();
+        } else if (event.key === 'Escape' && event.target === q) {
+          q.value = '';
+          apply();
+        }
+      });
+    })();
+  </script>
+</Base>

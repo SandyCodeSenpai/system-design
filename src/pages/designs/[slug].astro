@@ -1,0 +1,199 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import DifficultyBadge from '../../components/DifficultyBadge.astro';
+import ExternalIcon from '../../components/ExternalIcon.astro';
+import { href, githubBlobUrl, ref, diagramCount } from '../../lib/site.ts';
+import { allDesigns, allConcepts, isoDate, type Design } from '../../lib/data.ts';
+
+export async function getStaticPaths() {
+  const designs = await allDesigns();
+  return designs.map((design, i) => ({
+    params: { slug: design.id },
+    props: { design, index: i, prev: designs[i - 1] ?? null, next: designs[i + 1] ?? null },
+  }));
+}
+
+interface Props {
+  design: Design;
+  index: number;
+  prev: Design | null;
+  next: Design | null;
+}
+
+const { design, index, prev, next } = Astro.props;
+const { data } = design;
+const { Content, headings } = await render(design);
+
+const concepts = await allConcepts();
+const linked = data.concepts
+  .map((c) => concepts.find((x) => x.id === c.id))
+  .filter((c): c is NonNullable<typeof c> => Boolean(c));
+
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const diagrams = diagramCount(design.body);
+const sourceHref = design.filePath ? githubBlobUrl(design.filePath) : undefined;
+---
+
+<Base title={data.title} description={data.summary}>
+  <div class="shell pt-6 pb-stack">
+    <nav class="meta flex flex-wrap items-center gap-1.5" aria-label="Breadcrumb">
+      <a class="transition-colors hover:text-fg" href={href('/')}>Designs</a>
+      <span class="text-fg-faint" aria-hidden="true">/</span>
+      <span class="text-fg-muted">{data.category}</span>
+    </nav>
+
+    <div class="mt-6 grid gap-10 lg:grid-cols-[19rem_minmax(0,1fr)] lg:gap-14">
+      <!-- LEFT: identity, jump-off points, table of contents -->
+      <aside class="min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <p class="font-mono text-xs text-fg-faint">
+          <span>{ref(index)}</span>
+          <span class="mx-1.5" aria-hidden="true">·</span>
+          <time datetime={isoDate(data.date)}>{isoDate(data.date)}</time>
+          {
+            diagrams > 0 && (
+              <>
+                <span class="mx-1.5" aria-hidden="true">·</span>
+                <span>{diagrams} {diagrams === 1 ? 'diagram' : 'diagrams'}</span>
+              </>
+            )
+          }
+        </p>
+
+        <h1 class="mt-2 text-3xl">{data.title}</h1>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <DifficultyBadge difficulty={data.difficulty} />
+          <span class="chip chip-text">{data.category}</span>
+        </div>
+
+        <p class="prose mt-5 text-sm">{data.summary}</p>
+
+        {
+          data.askedAt.length > 0 && (
+            <div class="mt-5">
+              <p class="eyebrow">Asked at</p>
+              <ul class="mt-2 flex flex-wrap gap-1.5">
+                {data.askedAt.map((name) => (
+                  <li class="chip chip-text">{name}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        {
+          linked.length > 0 && (
+            <div class="mt-5">
+              <p class="eyebrow">Building blocks</p>
+              <ul class="mt-2 flex flex-wrap gap-1.5">
+                {linked.map((c) => (
+                  <li>
+                    <a class="chip chip-text" href={href(`/concepts/${c.id}/`)}>
+                      {c.data.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        {
+          (data.references.length > 0 || sourceHref) && (
+            <div class="mt-6 flex flex-col gap-2">
+              {data.references.map((r) => (
+                <a class="btn btn-block" href={r.url} target="_blank" rel="noopener noreferrer">
+                  <span class="min-w-0 truncate">{r.label}</span>
+                  <ExternalIcon />
+                </a>
+              ))}
+              {sourceHref && (
+                <a class="btn btn-block btn-quiet" href={sourceHref} target="_blank" rel="noopener noreferrer">
+                  <span>View source on GitHub</span>
+                  <ExternalIcon />
+                </a>
+              )}
+            </div>
+          )
+        }
+
+        {
+          toc.length > 1 && (
+            <nav class="mt-8 hidden lg:block" aria-label="On this page">
+              <p class="eyebrow">On this page</p>
+              <div class="toc mt-3" id="toc">
+                {toc.map((h) => (
+                  <a href={`#${h.slug}`} data-depth={h.depth}>
+                    {h.text}
+                  </a>
+                ))}
+              </div>
+            </nav>
+          )
+        }
+      </aside>
+
+      <!-- RIGHT: the design itself -->
+      <div class="min-w-0">
+        <article class="prose max-w-[72ch]">
+          <Content />
+        </article>
+
+        <nav class="mt-14 grid gap-3 border-t border-line pt-6 sm:grid-cols-2" aria-label="Adjacent designs">
+          {
+            prev ? (
+              <a class="glass group p-4 transition-colors hover:bg-surface-2" href={href(`/designs/${prev.id}/`)}>
+                <span class="eyebrow">Previous</span>
+                <span class="mt-1.5 block text-sm text-fg-muted transition-colors group-hover:text-fg">
+                  {prev.data.title}
+                </span>
+              </a>
+            ) : (
+              <span />
+            )
+          }
+          {
+            next && (
+              <a
+                class="glass group p-4 text-right transition-colors hover:bg-surface-2 sm:col-start-2"
+                href={href(`/designs/${next.id}/`)}
+              >
+                <span class="eyebrow">Next</span>
+                <span class="mt-1.5 block text-sm text-fg-muted transition-colors group-hover:text-fg">
+                  {next.data.title}
+                </span>
+              </a>
+            )
+          }
+        </nav>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Highlight the section in view. Progressive: the TOC is plain anchors without it.
+    const toc = document.getElementById('toc');
+    if (toc) {
+      const links = Array.from(toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]'));
+      const byId = new Map(links.map((a) => [a.hash.slice(1), a]));
+      const targets = Array.from(byId.keys())
+        .map((id) => document.getElementById(id))
+        .filter((el): el is HTMLElement => el !== null);
+      let current: HTMLAnchorElement | null = null;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const hit = entries.find((e) => e.isIntersecting);
+          if (!hit) return;
+          const link = byId.get(hit.target.id);
+          if (!link || link === current) return;
+          current?.removeAttribute('aria-current');
+          link.setAttribute('aria-current', 'true');
+          current = link;
+        },
+        { rootMargin: '-15% 0px -70% 0px' },
+      );
+      targets.forEach((t) => observer.observe(t));
+    }
+  </script>
+</Base>
